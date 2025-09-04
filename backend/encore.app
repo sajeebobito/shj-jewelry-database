@@ -1,0 +1,1 @@
+{"id": "shj-jewelry-database-go7i", "lang": "typescript"}
