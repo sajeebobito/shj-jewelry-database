@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 
-type Tab = 'memo-print' | 'memo-sheets' | 'sales' | 'this-week';
+type Tab = 'memo-print' | 'memo-sheets' | 'sales';
 
 interface TabNavigationProps {
   activeTab: Tab;
@@ -13,7 +13,6 @@ export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
     { id: 'memo-print' as Tab, label: 'Memo Print' },
     { id: 'memo-sheets' as Tab, label: 'Memo Sheets' },
     { id: 'sales' as Tab, label: 'Sales' },
-    { id: 'this-week' as Tab, label: 'This Week Entry' },
   ];
 
   return (

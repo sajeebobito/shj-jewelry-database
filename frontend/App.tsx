@@ -5,12 +5,11 @@ import { TabNavigation } from './components/TabNavigation';
 import { MemoPrint } from './components/MemoPrint';
 import { MemoSheets } from './components/MemoSheets';
 import { SalesTab } from './components/SalesTab';
-import { ThisWeekEntry } from './components/ThisWeekEntry';
 import { LatestMemos } from './components/LatestMemos';
 import { SettingsModal } from './components/SettingsModal';
 import { Toaster } from '@/components/ui/toaster';
 
-type Tab = 'memo-print' | 'memo-sheets' | 'sales' | 'this-week';
+type Tab = 'memo-print' | 'memo-sheets' | 'sales';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('memo-print');
@@ -28,7 +27,6 @@ export default function App() {
             {activeTab === 'memo-print' && <MemoPrint />}
             {activeTab === 'memo-sheets' && <MemoSheets />}
             {activeTab === 'sales' && <SalesTab />}
-            {activeTab === 'this-week' && <ThisWeekEntry />}
           </div>
           
           {activeTab === 'memo-print' && <LatestMemos />}

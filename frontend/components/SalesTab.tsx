@@ -1,39 +1,70 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/ui/use-toast';
 import backend from '~backend/client';
-
-interface SalesData {
-  period: string;
-  sales: number;
-  paid: number;
-  due: number;
-}
+import type { Memo } from '~backend/jewelry/list_memos';
 
 export function SalesTab() {
   const { toast } = useToast();
-  const [period, setPeriod] = useState<'day' | 'week' | 'month' | 'year'>('week');
-  const [salesData, setSalesData] = useState<SalesData[]>([]);
-  const [totalSales, setTotalSales] = useState(0);
-  const [cashAvailable, setCashAvailable] = useState(0);
-  const [totalDue, setTotalDue] = useState(0);
+  const [timespan, setTimespan] = useState<'day' | 'week' | 'month' | 'year'>('day');
+  const [memos, setMemos] = useState<Memo[]>([]);
+  const [totalRevenue, setTotalRevenue] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  const loadSalesData = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const response = await backend.jewelry.getSalesStats({ period });
-      setSalesData(response.periodSales);
-      setTotalSales(response.totalSales);
-      setCashAvailable(response.cashAvailable);
-      setTotalDue(response.totalDue);
+      
+      // Calculate date range based on timespan
+      const now = new Date();
+      let startDate: Date;
+      
+      switch (timespan) {
+        case 'day':
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          break;
+        case 'week':
+          startDate = new Date(now);
+          startDate.setDate(now.getDate() - 7);
+          break;
+        case 'month':
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          break;
+        case 'year':
+          startDate = new Date(now.getFullYear(), 0, 1);
+          break;
+        default:
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      }
+
+      // Get sales stats and memos
+      const [statsResponse, memosResponse] = await Promise.all([
+        backend.jewelry.getSalesStats({ 
+          period: timespan,
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: now.toISOString().split('T')[0]
+        }),
+        backend.jewelry.listMemos({ 
+          sortBy: 'date',
+          limit: 50
+        })
+      ]);
+
+      // Filter memos by date range
+      const filteredMemos = memosResponse.memos.filter(memo => {
+        const memoDate = new Date(memo.date);
+        return memoDate >= startDate && memoDate <= now;
+      });
+
+      setMemos(filteredMemos);
+      setTotalRevenue(statsResponse.cashAvailable);
     } catch (error) {
-      console.error('Error loading sales data:', error);
+      console.error('Error loading data:', error);
       toast({
         title: "Error",
-        description: "Failed to load sales data",
+        description: "Failed to load data",
         variant: "destructive",
       });
     } finally {
@@ -42,23 +73,32 @@ export function SalesTab() {
   };
 
   useEffect(() => {
-    loadSalesData();
-  }, [period]);
+    loadData();
+  }, [timespan]);
 
   const formatCurrency = (amount: number) => `৳${amount.toLocaleString()}`;
 
-  const chartData = salesData.map(data => ({
-    ...data,
-    date: new Date(data.period).toLocaleDateString(),
-  }));
+  const getTimespanLabel = () => {
+    switch (timespan) {
+      case 'day': return 'Today';
+      case 'week': return 'This Week';
+      case 'month': return 'This Month';
+      case 'year': return 'This Year';
+      default: return 'Today';
+    }
+  };
+
+  const periodTotal = memos.reduce((sum, memo) => sum + memo.totalPrice, 0);
+  const paidTotal = memos.reduce((sum, memo) => sum + memo.paid, 0);
+  const dueTotal = memos.reduce((sum, memo) => sum + memo.due, 0);
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold font-['Arial','Roboto',sans-serif]">
-          Sales Dashboard
+          {getTimespanLabel()} Sales
         </h2>
-        <Select value={period} onValueChange={(value: any) => setPeriod(value)}>
+        <Select value={timespan} onValueChange={(value: any) => setTimespan(value)}>
           <SelectTrigger className="w-32">
             <SelectValue />
           </SelectTrigger>
@@ -71,81 +111,95 @@ export function SalesTab() {
         </Select>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Total Sale</CardTitle>
+            <CardTitle className="text-sm">{getTimespanLabel()} Sales</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">
-              {formatCurrency(totalSales)}
+            <div className="text-xl font-bold text-primary">
+              {formatCurrency(periodTotal)}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Cash Available</CardTitle>
+            <CardTitle className="text-sm">Paid</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(cashAvailable)}
+            <div className="text-xl font-bold text-green-600">
+              {formatCurrency(paidTotal)}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Total Due</CardTitle>
+            <CardTitle className="text-sm">Due</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
-              {formatCurrency(totalDue)}
+            <div className="text-xl font-bold text-red-600">
+              {formatCurrency(dueTotal)}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Total Cash Available</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold text-blue-600">
+              {formatCurrency(totalRevenue)}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {loading ? (
-        <div className="text-center py-8">Loading charts...</div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Sales Overview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" fontSize={12} />
-                  <YAxis fontSize={12} />
-                  <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                  <Bar dataKey="sales" fill="#3b82f6" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Payment Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" fontSize={12} />
-                  <YAxis fontSize={12} />
-                  <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                  <Line type="monotone" dataKey="paid" stroke="#10b981" strokeWidth={2} />
-                  <Line type="monotone" dataKey="due" stroke="#ef4444" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">{getTimespanLabel()} Entries</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="text-center py-4">Loading...</div>
+          ) : (
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs">Date</TableHead>
+                    <TableHead className="text-xs">Client</TableHead>
+                    <TableHead className="text-xs">Item</TableHead>
+                    <TableHead className="text-xs">Count</TableHead>
+                    <TableHead className="text-xs">Price</TableHead>
+                    <TableHead className="text-xs">Total</TableHead>
+                    <TableHead className="text-xs">Paid</TableHead>
+                    <TableHead className="text-xs">Due</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {memos.map((memo) => (
+                    <TableRow key={memo.id}>
+                      <TableCell className="text-xs">
+                        {new Date(memo.date).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-xs">{memo.clientName}</TableCell>
+                      <TableCell className="text-xs">{memo.itemName}</TableCell>
+                      <TableCell className="text-xs">{memo.itemCount}</TableCell>
+                      <TableCell className="text-xs">৳{memo.itemPrice}</TableCell>
+                      <TableCell className="text-xs">৳{memo.totalPrice}</TableCell>
+                      <TableCell className="text-xs">৳{memo.paid}</TableCell>
+                      <TableCell className="text-xs">৳{memo.due}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
