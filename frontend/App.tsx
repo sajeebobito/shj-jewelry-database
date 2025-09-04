@@ -31,7 +31,7 @@ export default function App() {
             {activeTab === 'this-week' && <ThisWeekEntry />}
           </div>
           
-          <LatestMemos />
+          {activeTab === 'memo-print' && <LatestMemos />}
         </main>
 
         <SettingsModal 
