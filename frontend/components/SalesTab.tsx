@@ -1,70 +1,106 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Calendar, TrendingUp, Wallet, Clock } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import backend from '~backend/client';
 import type { Memo } from '~backend/jewelry/list_memos';
 
+interface SalesMetrics {
+  todaySales: number;
+  weekSales: number;
+  monthSales: number;
+  yearSales: number;
+  todayPaid: number;
+  weekPaid: number;
+  monthPaid: number;
+  yearPaid: number;
+}
+
 export function SalesTab() {
   const { toast } = useToast();
-  const [timespan, setTimespan] = useState<'day' | 'week' | 'month' | 'year'>('day');
-  const [memos, setMemos] = useState<Memo[]>([]);
-  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [metrics, setMetrics] = useState<SalesMetrics>({
+    todaySales: 0,
+    weekSales: 0,
+    monthSales: 0,
+    yearSales: 0,
+    todayPaid: 0,
+    weekPaid: 0,
+    monthPaid: 0,
+    yearPaid: 0,
+  });
   const [loading, setLoading] = useState(true);
 
-  const loadData = async () => {
+  const loadSalesMetrics = async () => {
     try {
       setLoading(true);
       
-      // Calculate date range based on timespan
       const now = new Date();
-      let startDate: Date;
       
-      switch (timespan) {
-        case 'day':
-          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          break;
-        case 'week':
-          startDate = new Date(now);
-          startDate.setDate(now.getDate() - 7);
-          break;
-        case 'month':
-          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-          break;
-        case 'year':
-          startDate = new Date(now.getFullYear(), 0, 1);
-          break;
-        default:
-          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      }
+      // Today
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      // This week (last 7 days)
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - 6);
+      weekStart.setHours(0, 0, 0, 0);
+      
+      // This month
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      // This year
+      const yearStart = new Date(now.getFullYear(), 0, 1);
 
-      // Get sales stats and memos
-      const [statsResponse, memosResponse] = await Promise.all([
-        backend.jewelry.getSalesStats({ 
-          period: timespan,
-          startDate: startDate.toISOString().split('T')[0],
+      const [todayStats, weekStats, monthStats, yearStats] = await Promise.all([
+        backend.jewelry.getSalesStats({
+          period: 'day',
+          startDate: todayStart.toISOString().split('T')[0],
           endDate: now.toISOString().split('T')[0]
         }),
-        backend.jewelry.listMemos({ 
-          sortBy: 'date',
-          limit: 50
+        backend.jewelry.getSalesStats({
+          period: 'week',
+          startDate: weekStart.toISOString().split('T')[0],
+          endDate: now.toISOString().split('T')[0]
+        }),
+        backend.jewelry.getSalesStats({
+          period: 'month',
+          startDate: monthStart.toISOString().split('T')[0],
+          endDate: now.toISOString().split('T')[0]
+        }),
+        backend.jewelry.getSalesStats({
+          period: 'year',
+          startDate: yearStart.toISOString().split('T')[0],
+          endDate: now.toISOString().split('T')[0]
         })
       ]);
 
-      // Filter memos by date range
-      const filteredMemos = memosResponse.memos.filter(memo => {
-        const memoDate = new Date(memo.date);
-        return memoDate >= startDate && memoDate <= now;
-      });
+      // Calculate totals from period sales
+      const todayTotal = todayStats.periodSales.reduce((sum, day) => sum + day.sales, 0);
+      const todayPaidTotal = todayStats.periodSales.reduce((sum, day) => sum + day.paid, 0);
+      
+      const weekTotal = weekStats.periodSales.reduce((sum, day) => sum + day.sales, 0);
+      const weekPaidTotal = weekStats.periodSales.reduce((sum, day) => sum + day.paid, 0);
+      
+      const monthTotal = monthStats.periodSales.reduce((sum, day) => sum + day.sales, 0);
+      const monthPaidTotal = monthStats.periodSales.reduce((sum, day) => sum + day.paid, 0);
+      
+      const yearTotal = yearStats.periodSales.reduce((sum, day) => sum + day.sales, 0);
+      const yearPaidTotal = yearStats.periodSales.reduce((sum, day) => sum + day.paid, 0);
 
-      setMemos(filteredMemos);
-      setTotalRevenue(statsResponse.cashAvailable);
+      setMetrics({
+        todaySales: todayTotal,
+        weekSales: weekTotal,
+        monthSales: monthTotal,
+        yearSales: yearTotal,
+        todayPaid: todayPaidTotal,
+        weekPaid: weekPaidTotal,
+        monthPaid: monthPaidTotal,
+        yearPaid: yearPaidTotal,
+      });
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('Error loading sales metrics:', error);
       toast({
         title: "Error",
-        description: "Failed to load data",
+        description: "Failed to load sales data",
         variant: "destructive",
       });
     } finally {
@@ -73,133 +109,148 @@ export function SalesTab() {
   };
 
   useEffect(() => {
-    loadData();
-  }, [timespan]);
+    loadSalesMetrics();
+    
+    // Auto-refresh every 60 seconds
+    const interval = setInterval(loadSalesMetrics, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const formatCurrency = (amount: number) => `৳${amount.toLocaleString()}`;
 
-  const getTimespanLabel = () => {
-    switch (timespan) {
-      case 'day': return 'Today';
-      case 'week': return 'This Week';
-      case 'month': return 'This Month';
-      case 'year': return 'This Year';
-      default: return 'Today';
-    }
-  };
-
-  const periodTotal = memos.reduce((sum, memo) => sum + memo.totalPrice, 0);
-  const paidTotal = memos.reduce((sum, memo) => sum + memo.paid, 0);
-  const dueTotal = memos.reduce((sum, memo) => sum + memo.due, 0);
+  const MetricCard = ({ 
+    title, 
+    value, 
+    paidValue, 
+    icon: Icon, 
+    color 
+  }: { 
+    title: string; 
+    value: number; 
+    paidValue: number;
+    icon: React.ElementType; 
+    color: string;
+  }) => (
+    <Card className="relative overflow-hidden">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+          <Icon className={`h-4 w-4 ${color}`} />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-1">
+          <div className="text-2xl font-bold text-foreground">
+            {loading ? (
+              <div className="h-8 w-24 bg-muted animate-pulse rounded" />
+            ) : (
+              formatCurrency(value)
+            )}
+          </div>
+          <div className="text-sm text-muted-foreground">
+            Cash: {loading ? (
+              <span className="inline-block h-4 w-16 bg-muted animate-pulse rounded" />
+            ) : (
+              <span className="text-green-600 font-medium">
+                {formatCurrency(paidValue)}
+              </span>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold font-['Arial','Roboto',sans-serif]">
-          {getTimespanLabel()} Sales
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold font-['Arial','Roboto',sans-serif]">
+          Sales Dashboard
         </h2>
-        <Select value={timespan} onValueChange={(value: any) => setTimespan(value)}>
-          <SelectTrigger className="w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="day">Day</SelectItem>
-            <SelectItem value="week">Week</SelectItem>
-            <SelectItem value="month">Month</SelectItem>
-            <SelectItem value="year">Year</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Clock className="h-4 w-4" />
+          Auto-refreshes every minute
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard
+          title="Today Sales"
+          value={metrics.todaySales}
+          paidValue={metrics.todayPaid}
+          icon={Calendar}
+          color="text-blue-600"
+        />
+        
+        <MetricCard
+          title="This Week Sales"
+          value={metrics.weekSales}
+          paidValue={metrics.weekPaid}
+          icon={TrendingUp}
+          color="text-green-600"
+        />
+        
+        <MetricCard
+          title="This Month Sales"
+          value={metrics.monthSales}
+          paidValue={metrics.monthPaid}
+          icon={Wallet}
+          color="text-purple-600"
+        />
+        
+        <MetricCard
+          title="This Year Sales"
+          value={metrics.yearSales}
+          paidValue={metrics.yearPaid}
+          icon={TrendingUp}
+          color="text-orange-600"
+        />
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">{getTimespanLabel()} Sales</CardTitle>
+            <CardTitle className="text-sm">Total Revenue (All Time)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold text-primary">
-              {formatCurrency(periodTotal)}
+              {formatCurrency(metrics.yearSales)}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Based on current year data
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Paid</CardTitle>
+            <CardTitle className="text-sm">Cash Available</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold text-green-600">
-              {formatCurrency(paidTotal)}
+              {formatCurrency(metrics.yearPaid)}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Total payments received
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Due</CardTitle>
+            <CardTitle className="text-sm">Outstanding Due</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold text-red-600">
-              {formatCurrency(dueTotal)}
+              {formatCurrency(metrics.yearSales - metrics.yearPaid)}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Total Cash Available</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold text-blue-600">
-              {formatCurrency(totalRevenue)}
+            <div className="text-sm text-muted-foreground">
+              Pending collections
             </div>
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">{getTimespanLabel()} Entries</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-4">Loading...</div>
-          ) : (
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs">Date</TableHead>
-                    <TableHead className="text-xs">Client</TableHead>
-                    <TableHead className="text-xs">Item</TableHead>
-                    <TableHead className="text-xs">Count</TableHead>
-                    <TableHead className="text-xs">Price</TableHead>
-                    <TableHead className="text-xs">Total</TableHead>
-                    <TableHead className="text-xs">Paid</TableHead>
-                    <TableHead className="text-xs">Due</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {memos.map((memo) => (
-                    <TableRow key={memo.id}>
-                      <TableCell className="text-xs">
-                        {new Date(memo.date).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-xs">{memo.clientName}</TableCell>
-                      <TableCell className="text-xs">{memo.itemName}</TableCell>
-                      <TableCell className="text-xs">{memo.itemCount}</TableCell>
-                      <TableCell className="text-xs">৳{memo.itemPrice}</TableCell>
-                      <TableCell className="text-xs">৳{memo.totalPrice}</TableCell>
-                      <TableCell className="text-xs">৳{memo.paid}</TableCell>
-                      <TableCell className="text-xs">৳{memo.due}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
