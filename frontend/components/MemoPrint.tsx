@@ -12,9 +12,9 @@ export function MemoPrint() {
     date: new Date().toISOString().split('T')[0],
     clientName: '',
     itemName: '',
-    itemCount: 1,
-    itemPrice: 0,
-    paid: 0,
+    itemCount: '',
+    itemPrice: '',
+    paid: '',
     copies: 1,
   });
 
@@ -89,9 +89,9 @@ export function MemoPrint() {
         date: new Date().toISOString().split('T')[0],
         clientName: '',
         itemName: '',
-        itemCount: 1,
-        itemPrice: 0,
-        paid: 0,
+        itemCount: '',
+        itemPrice: '',
+        paid: '',
         copies: 1,
       });
 
