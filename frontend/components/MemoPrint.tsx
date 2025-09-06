@@ -156,6 +156,7 @@ export function MemoPrint() {
               min="1"
               value={formData.itemCount}
               onChange={(e) => handleInputChange('itemCount', parseInt(e.target.value) || 1)}
+              placeholder="Enter Total Item Count"
             />
           </div>
         </div>
@@ -169,6 +170,7 @@ export function MemoPrint() {
               min="0"
               value={formData.itemPrice}
               onChange={(e) => handleInputChange('itemPrice', parseFloat(e.target.value) || 0)}
+              placeholder="Enter Item Price"
             />
           </div>
           <div>
@@ -191,6 +193,7 @@ export function MemoPrint() {
               min="0"
               value={formData.paid}
               onChange={(e) => handleInputChange('paid', parseFloat(e.target.value) || 0)}
+              placeholder="Enter Total Paid Amount"
             />
           </div>
           <div>
